@@ -18,8 +18,7 @@ jobs:
         uses: docker/setup-buildx-action@v3
 
       - name: Build whatsapp-bridge image
-        run: |
-          docker build ./whatsapp-bridge --tag whatsapp-bridge:test
+        run: docker build ./whatsapp-bridge --tag whatsapp-bridge:test
 
       - name: Verify build success
         run: |

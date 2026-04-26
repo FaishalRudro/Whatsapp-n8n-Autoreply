@@ -1,0 +1,41 @@
+version: '3.8'
+
+services:
+  n8n:
+    image: n8nio/n8n:latest
+    container_name: n8n
+    restart: unless-stopped
+    ports:
+      - "5678:5678"
+    environment:
+      - N8N_BASIC_AUTH_ACTIVE=true
+      - N8N_BASIC_AUTH_USER=${N8N_BASIC_AUTH_USER}
+      - N8N_BASIC_AUTH_PASSWORD=${N8N_BASIC_AUTH_PASSWORD}
+      - N8N_HOST=${N8N_HOST}
+      - N8N_PORT=${N8N_PORT}
+      - N8N_PROTOCOL=${N8N_PROTOCOL}
+      - WEBHOOK_URL=${WEBHOOK_URL}
+      - GENERIC_TIMEZONE=Asia/Dhaka
+    volumes:
+      - ./n8n/data:/home/node/.n8n
+    networks:
+      - app-network
+
+  whatsapp-bridge:
+    build: ./whatsapp-bridge
+    container_name: whatsapp-bridge
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - N8N_WEBHOOK_URL=${N8N_WEBHOOK_URL}
+    volumes:
+      - ./whatsapp-bridge/session:/app/session
+    networks:
+      - app-network
+    depends_on:
+      - n8n
+
+networks:
+  app-network:
+    driver: bridge

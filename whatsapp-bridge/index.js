@@ -6,7 +6,9 @@ const axios = require('axios');
 const app = express();
 app.use(express.json());
 
-// incoming messages store করবো messageId দিয়ে
+// Auto-reply default OFF
+let autoReplyEnabled = false;
+
 const pendingMessages = new Map();
 
 const client = new Client({
@@ -22,16 +24,17 @@ const client = new Client({
 });
 
 client.on('qr', (qr) => {
-  console.log('📱 নিচের QR code টা WhatsApp দিয়ে scan করো:');
+  console.log('📱 QR code scan করো:');
   qrcode.generate(qr, { small: true });
 });
 
 client.on('ready', () => {
   console.log('✅ WhatsApp successfully connected!');
+  console.log(`🔴 Auto-reply: OFF`);
 });
 
 client.on('auth_failure', () => {
-  console.error('❌ WhatsApp auth failed! Session মুছে আবার চেষ্টা করো।');
+  console.error('❌ WhatsApp auth failed!');
 });
 
 client.on('message', async (message) => {
@@ -40,13 +43,14 @@ client.on('message', async (message) => {
   const msgId = message.id._serialized;
   console.log(`📩 New message [${msgId}]: ${message.body}`);
 
-  // message টা memory-তে রাখো
-  pendingMessages.set(msgId, message);
+  // Auto-reply OFF থাকলে কিছু করবো না
+  if (!autoReplyEnabled) {
+    console.log('⏸️ Auto-reply is OFF, skipping...');
+    return;
+  }
 
-  // 10 মিনিট পর automatically মুছে দাও
-  setTimeout(() => {
-    pendingMessages.delete(msgId);
-  }, 10 * 60 * 1000);
+  pendingMessages.set(msgId, message);
+  setTimeout(() => pendingMessages.delete(msgId), 10 * 60 * 1000);
 
   try {
     await axios.post('http://n8n:5678/webhook/whatsapp-incoming', {
@@ -54,27 +58,46 @@ client.on('message', async (message) => {
       body: message.body,
       timestamp: message.timestamp,
     });
-    console.log('✅ Forwarded to n8n, messageId:', msgId);
+    console.log('✅ Forwarded to n8n');
   } catch (err) {
     console.error('❌ n8n webhook error:', err.message);
   }
 });
 
-// n8n থেকে reply আসবে এখানে
+// Auto-reply ON করো
+app.post('/enable', (req, res) => {
+  autoReplyEnabled = true;
+  console.log('✅ Auto-reply: ON');
+  res.json({ success: true, autoReply: 'ON' });
+});
+
+// Auto-reply OFF করো
+app.post('/disable', (req, res) => {
+  autoReplyEnabled = false;
+  console.log('🔴 Auto-reply: OFF');
+  res.json({ success: true, autoReply: 'OFF' });
+});
+
+// Status check
+app.get('/status', (req, res) => {
+  res.json({
+    autoReply: autoReplyEnabled ? 'ON' : 'OFF',
+    whatsapp: client.info ? 'connected' : 'disconnected',
+  });
+});
+
 app.post('/send-message', async (req, res) => {
   const { messageId, message } = req.body;
-  console.log('📤 Reply request for messageId:', messageId);
+  console.log('📤 Replying to messageId:', messageId);
 
   const originalMessage = pendingMessages.get(messageId);
-
   if (!originalMessage) {
-    console.error('❌ Original message not found for id:', messageId);
     return res.status(404).json({ success: false, error: 'Message not found' });
   }
 
   try {
     await originalMessage.reply(message);
-    console.log('✉️ Reply sent successfully!');
+    console.log('✉️ Reply sent!');
     pendingMessages.delete(messageId);
     res.json({ success: true });
   } catch (err) {
@@ -86,8 +109,8 @@ app.post('/send-message', async (req, res) => {
 app.get('/health', (req, res) => {
   res.json({
     status: 'ok',
+    autoReply: autoReplyEnabled ? 'ON' : 'OFF',
     whatsapp: client.info ? 'connected' : 'disconnected',
-    pendingMessages: pendingMessages.size,
   });
 });
 

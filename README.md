@@ -12,7 +12,7 @@ Personal WhatsApp নম্বরে automatic away message পাঠানো�
         ↓
 whatsapp-web.js message ধরে
         ↓
-n8n webhook-এ forward করে
+Auto-reply ON থাকলে n8n webhook-এ forward করে
         ↓
 n8n auto-reply পাঠায়
 ```
@@ -58,13 +58,39 @@ Terminal-এ QR code দেখাবে — WhatsApp দিয়ে scan কর
 - Browser-এ যাও: `http://localhost:5678`
 - Webhook node যোগ করো (path: `whatsapp-incoming`)
 - HTTP Request node যোগ করো (`http://whatsapp-bridge:3000/send-message`)
-- Workflow activate করো
+- Body:
+```json
+{
+  "messageId": "{{ $json.body.messageId }}",
+  "message": "Hi! I'm currently unavailable right now. I'll get back to you as soon as possible. 🙏"
+}
+```
+- Workflow publish করো
+
+## Auto-reply Control
+
+যখন বাইরে যাবে — **চালু করো:**
+```powershell
+Invoke-WebRequest -Method POST -Uri http://localhost:3000/enable -UseBasicParsing
+```
+
+যখন ফিরবে — **বন্ধ করো:**
+```powershell
+Invoke-WebRequest -Method POST -Uri http://localhost:3000/disable -UseBasicParsing
+```
+
+**Status দেখো:**
+```powershell
+Invoke-WebRequest -Uri http://localhost:3000/status -UseBasicParsing
+```
 
 ## Auto-start (PC restart হলে)
 
 Docker Desktop → Settings → General → ✅ Start Docker Desktop when you log in
 
 `restart: unless-stopped` দেওয়া আছে তাই Docker চালু হলে সব automatically start হবে।
+
+> ⚠️ PC restart হলে auto-reply default **OFF** থাকবে। চালু করতে উপরের enable command দাও।
 
 ## Project Structure
 
